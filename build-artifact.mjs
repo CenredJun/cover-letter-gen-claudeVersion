@@ -11,5 +11,8 @@ const body = html.match(/<body>([\s\S]*?)<\/body>/)[1]
   .replace(/<script[\s\S]*?<\/script>/g, '')
   .trim()
 
-writeFileSync('dist/artifact.html', `${title}\n${styles}\n${body}\n${scripts}\n`)
+// Libraries (pdf.js, mammoth) contain a literal U+FFFD; write it as a JS
+// escape, which means the same thing, so the publisher accepts the file.
+const page = `${title}\n${styles}\n${body}\n${scripts}\n`.replaceAll('\uFFFD', '\\uFFFD')
+writeFileSync('dist/artifact.html', page)
 console.log('wrote dist/artifact.html')
