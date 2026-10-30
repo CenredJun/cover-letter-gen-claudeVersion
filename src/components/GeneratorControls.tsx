@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { generateCoverLetter } from '../lib/claudeApi'
 import type { OutputMode, ToneOption } from '../types'
+import { describeSampleError, isSampleError } from '../lib/claudeRuntime'
 
 const TONES: { value: ToneOption; label: string }[] = [
   { value: 'professional', label: 'Professional' },
@@ -28,6 +29,7 @@ export default function GeneratorControls() {
   const addToHistory = useAppStore((s) => s.addToHistory)
 
   const [error, setError] = useState<string | null>(null)
+  const ctlRef = useRef<AbortController | null>(null)
 
   async function handleGenerate() {
     const profile = profiles.find((p) => p.id === activeProfileId)
@@ -38,12 +40,15 @@ export default function GeneratorControls() {
     setError(null)
     setIsGenerating(true)
     setOutput('')
+    const ctl = new AbortController()
+    ctlRef.current = ctl
     try {
       const letter = await generateCoverLetter(
         profile,
         jobInput,
         tone,
-        outputMode
+        outputMode,
+        { signal: ctl.signal, onText: setOutput }
       )
       setOutput(letter)
       addToHistory({
@@ -55,8 +60,15 @@ export default function GeneratorControls() {
         output: letter,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed.')
+      if (isSampleError(err)) {
+        // Keep whatever was written before the stop or failure.
+        setOutput(err.code === 'refused' ? '' : err.text ?? '')
+        if (err.code !== 'cancelled') setError(describeSampleError(err))
+      } else {
+        setError(describeSampleError(err))
+      }
     } finally {
+      ctlRef.current = null
       setIsGenerating(false)
     }
   }
@@ -129,11 +141,12 @@ export default function GeneratorControls() {
         </div>
       </div>
 
+      <div className="flex gap-2">
       <button
         type="button"
         onClick={handleGenerate}
         disabled={isGenerating}
-        className="flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex flex-1 items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isGenerating && (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -144,6 +157,16 @@ export default function GeneratorControls() {
             ? 'Generate Pitch'
             : 'Generate Cover Letter'}
       </button>
+      {isGenerating && (
+        <button
+          type="button"
+          onClick={() => ctlRef.current?.abort()}
+          className="rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+        >
+          Stop
+        </button>
+      )}
+      </div>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
     </section>

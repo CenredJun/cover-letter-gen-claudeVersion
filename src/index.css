@@ -13,3 +13,9 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
+
+/* The artifact host paints its own background behind the page. */
+body {
+  background: #f3f4f6;
+  color: #1f2937;
+}

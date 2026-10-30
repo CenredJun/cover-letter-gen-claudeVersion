@@ -22,3 +22,4 @@ dist-ssr
 
 # Environment — never commit the API key
 .env
+*.tsbuildinfo

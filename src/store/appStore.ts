@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type {
   HistoryEntry,
   JobInput,
@@ -20,7 +19,7 @@ const emptyJobInput: JobInput = {
   additionals: '',
 }
 
-const DEFAULT_PROFILE: Profile = {
+export const DEFAULT_PROFILE: Profile = {
   id: 'default-ai-pm',
   name: 'AI Automation & PM',
   resumeText: 'Paste your resume and work experience here',
@@ -37,7 +36,7 @@ Resume: https://drive.google.com/file/d/1OgtKpDMjiEwvuutvjWNuN7PdNj8kAQT2/view`,
 }
 
 // Lightweight unique id generator (no external deps).
-function generateId(): string {
+export function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
@@ -50,6 +49,9 @@ interface AppState {
   history: HistoryEntry[]
   isGenerating: boolean
   output: string
+  // Where profiles and history are kept: loading, the artifact's private
+  // database (synced), or this browser only (local).
+  storage: 'loading' | 'synced' | 'local'
 
   addProfile: (profile?: Partial<Profile>) => string
   updateProfile: (id: string, patch: Partial<Profile>) => void
@@ -67,9 +69,7 @@ interface AppState {
   deleteHistoryEntry: (id: string) => void
 }
 
-export const useAppStore = create<AppState>()(
-  persist(
-    (set) => ({
+export const useAppStore = create<AppState>()((set) => ({
       profiles: [],
       activeProfileId: null,
       jobInput: emptyJobInput,
@@ -78,6 +78,7 @@ export const useAppStore = create<AppState>()(
       history: [],
       isGenerating: false,
       output: '',
+      storage: 'loading',
 
       addProfile: (profile) => {
         const id = generateId()
@@ -143,28 +144,4 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           history: state.history.filter((h) => h.id !== id),
         })),
-    }),
-    {
-      name: 'cover-letter-gen',
-      // Only persist profiles, history, and activeProfileId.
-      partialize: (state) => ({
-        profiles: state.profiles,
-        history: state.history,
-        activeProfileId: state.activeProfileId,
-      }),
-    }
-  )
-)
-
-// Seed the default profile on first load if no profiles exist yet.
-export function seedDefaultProfile(): void {
-  const { profiles, setActiveProfile } = useAppStore.getState()
-  if (profiles.length === 0) {
-    useAppStore.setState({
-      profiles: [DEFAULT_PROFILE],
-      activeProfileId: DEFAULT_PROFILE.id,
-    })
-  } else if (!useAppStore.getState().activeProfileId) {
-    setActiveProfile(profiles[0].id)
-  }
-}
+}))

@@ -2,10 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
-import { seedDefaultProfile } from './store/appStore'
+import { startSync } from './lib/sync'
 
-// Seed the default profile on first load (no-op if profiles already exist).
-seedDefaultProfile()
+// Load profiles and history from the artifact's private storage.
+startSync()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

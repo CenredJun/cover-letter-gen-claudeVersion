@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { parseJobDescription } from '../lib/claudeApi'
 import type { JobInput } from '../types'
+import { describeSampleError } from '../lib/claudeRuntime'
 
 const FIELDS: { key: keyof JobInput; label: string; multiline: boolean }[] = [
   { key: 'jobTitle', label: 'Job Title', multiline: false },
@@ -36,7 +37,7 @@ export default function JobDescriptionInput() {
       updateJobInput(parsed)
       setFieldsOpen(true)
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : 'Failed to parse.')
+      setParseError(describeSampleError(err))
     } finally {
       setIsParsing(false)
     }

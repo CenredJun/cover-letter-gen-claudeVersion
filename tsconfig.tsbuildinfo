@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/generatorcontrols.tsx","./src/components/historypanel.tsx","./src/components/jobdescriptioninput.tsx","./src/components/outputpanel.tsx","./src/components/profilemanager.tsx","./src/lib/claudeapi.ts","./src/store/appstore.ts","./src/types/index.ts"],"version":"5.9.3"}

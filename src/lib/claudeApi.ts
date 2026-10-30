@@ -1,8 +1,9 @@
 import type { JobInput, OutputMode, Profile, ToneOption } from '../types'
 
-const API_KEY = import.meta.env.VITE_CLAUDE_API_KEY as string | undefined
-const API_URL = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-5'
+import {
+  useCapability,
+  type SampleFn,
+} from './claudeRuntime'
 
 const SYSTEM_PROMPT = `You are an expert personal career coach with a strong ability to craft professional, ATS-optimized cover letters. You specialize in tailoring job descriptions to match a resume, highlighting relevant skills and experience while keeping the tone authentic and human-like.`
 
@@ -10,11 +11,6 @@ const PITCH_SYSTEM_PROMPT = `You are an expert freelance proposal writer special
 You write short, direct, human-sounding pitches that win clients.
 You never use formal cover letter structure. No 'Dear Hiring Manager'. No long paragraphs.
 You write like a confident specialist talking directly to a client.`
-
-interface AnthropicResponse {
-  content?: Array<{ type: string; text?: string }>
-  error?: { type: string; message: string }
-}
 
 const TONE_DESCRIPTIONS: Record<ToneOption, string> = {
   professional: 'professional = formal and polished',
@@ -137,61 +133,36 @@ Qualifications: ${job.qualifications}
 Additionals: ${job.additionals}`
 }
 
+export interface CallOptions {
+  onText?: (text: string) => void
+  signal?: AbortSignal
+  quick?: boolean
+}
+
+// Runs the prompt on the viewer's own Claude account through the artifact
+// runtime. No API key is involved, so nothing secret ships with the page.
 async function callClaude(
   system: string,
   userContent: string,
-  maxTokens: number
+  opts: CallOptions = {}
 ): Promise<string> {
-  if (!API_KEY || API_KEY === 'your_api_key_here') {
+  const sample = await useCapability<SampleFn>('sample')
+  if (!sample) {
     throw new Error(
-      'Missing API key. Set VITE_CLAUDE_API_KEY in your .env file and restart the dev server.'
+      'Claude is only available when this page is opened inside claude.ai.'
     )
   }
-
-  let res: Response
-  try {
-    res = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': API_KEY,
-        'anthropic-version': '2023-06-01',
-        // Required to call the API directly from a browser.
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: maxTokens,
-        system,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    })
-  } catch (err) {
-    throw new Error(
-      `Network error reaching the Claude API: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    )
-  }
-
-  const data = (await res.json().catch(() => ({}))) as AnthropicResponse
-
-  if (!res.ok) {
-    const message = data.error?.message ?? `Request failed (HTTP ${res.status})`
-    throw new Error(message)
-  }
-
-  const text = data.content
-    ?.filter((block) => block.type === 'text')
-    .map((block) => block.text ?? '')
-    .join('')
-    .trim()
-
-  if (!text) {
-    throw new Error('The API returned an empty response.')
-  }
-
-  return text
+  // The runtime has no separate system prompt, so the role goes first.
+  const input = `${system}\n\n${userContent}\n\nReply with only the requested output, no preamble or commentary.`
+  const { text } = await sample(input, {
+    onText: opts.onText ? ({ text }) => opts.onText!(text) : undefined,
+    signal: opts.signal,
+    modelTier: opts.quick ? 'quick' : 'default',
+    cache: false,
+  })
+  const out = text.trim()
+  if (!out) throw new Error('Claude returned an empty response.')
+  return out
 }
 
 /**
@@ -202,14 +173,15 @@ export async function generateCoverLetter(
   profile: Profile,
   job: JobInput,
   tone: ToneOption,
-  outputMode: OutputMode = 'cover_letter'
+  outputMode: OutputMode = 'cover_letter',
+  opts: CallOptions = {}
 ): Promise<string> {
   if (outputMode === 'pitch') {
     const pitchPrompt = buildPitchPrompt(profile, job, tone)
-    return callClaude(PITCH_SYSTEM_PROMPT, pitchPrompt, 2000)
+    return callClaude(PITCH_SYSTEM_PROMPT, pitchPrompt, opts)
   }
   const userPrompt = buildUserPrompt(profile, job, tone)
-  return callClaude(SYSTEM_PROMPT, userPrompt, 2000)
+  return callClaude(SYSTEM_PROMPT, userPrompt, opts)
 }
 
 /**
@@ -241,7 +213,7 @@ Job description:
 ${rawText}
 """`
 
-  const responseText = await callClaude(system, userContent, 2000)
+  const responseText = await callClaude(system, userContent, { quick: true })
 
   // Pull the JSON object out of the response, even if wrapped in prose/fences.
   const match = responseText.match(/\{[\s\S]*\}/)

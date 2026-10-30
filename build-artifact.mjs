@@ -1,0 +1,15 @@
+// Converts dist/index.html into the body-only page the claude.ai Artifact
+// publisher expects (it adds its own doctype, head and body).
+import { readFileSync, writeFileSync } from 'node:fs'
+
+const html = readFileSync('dist/index.html', 'utf8')
+const pick = (re) => [...html.matchAll(re)].map((m) => m[0]).join('\n')
+const title = pick(/<title>[\s\S]*?<\/title>/g)
+const styles = pick(/<style[\s\S]*?<\/style>/g)
+const scripts = pick(/<script[\s\S]*?<\/script>/g)
+const body = html.match(/<body>([\s\S]*?)<\/body>/)[1]
+  .replace(/<script[\s\S]*?<\/script>/g, '')
+  .trim()
+
+writeFileSync('dist/artifact.html', `${title}\n${styles}\n${body}\n${scripts}\n`)
+console.log('wrote dist/artifact.html')

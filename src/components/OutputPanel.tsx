@@ -1,11 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
+import { useCapability } from '../lib/claudeRuntime'
 
 export default function OutputPanel() {
   const output = useAppStore((s) => s.output)
   const jobInput = useAppStore((s) => s.jobInput)
   const outputMode = useAppStore((s) => s.outputMode)
+  const isGenerating = useAppStore((s) => s.isGenerating)
   const [copied, setCopied] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [downloads, setDownloads] = useState<any>(null)
+  const boxRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    let live = true
+    useCapability('downloads').then((d) => live && setDownloads(d))
+    return () => {
+      live = false
+    }
+  }, [])
 
   async function handleCopy() {
     if (!output) return
@@ -14,25 +27,24 @@ export default function OutputPanel() {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
-      setCopied(false)
+      // Clipboard refused: select the text so Ctrl/Cmd+C works.
+      boxRef.current?.select()
+      setNotice('Text selected. Press Ctrl+C (or Cmd+C) to copy.')
     }
   }
 
   function handleDownload() {
-    if (!output) return
+    if (!output || !downloads) return
     const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')
     const namePart =
       [jobInput.companyName, jobInput.jobTitle].filter(Boolean).map(safe).join('_') ||
       'cover-letter'
-    const blob = new Blob([output], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${namePart}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    setNotice(null)
+    downloads
+      .save({ filename: `${namePart}.txt`, data: output })
+      .catch((e: { code?: string }) => {
+        if (e?.code !== 'declined') setNotice('Could not save the file here.')
+      })
   }
 
   return (
@@ -42,8 +54,9 @@ export default function OutputPanel() {
       </h2>
 
       <textarea
+        ref={boxRef}
         readOnly
-        value={output}
+        value={output || (isGenerating ? 'Thinking…' : '')}
         rows={16}
         placeholder="Your generated cover letter will appear here…"
         className="w-full resize-y rounded-md border border-gray-300 bg-gray-50 p-3 font-mono text-sm leading-relaxed text-gray-800 outline-none"
@@ -58,6 +71,7 @@ export default function OutputPanel() {
         >
           {copied ? 'Copied!' : 'Copy to clipboard'}
         </button>
+        {downloads && (
         <button
           type="button"
           onClick={handleDownload}
@@ -66,7 +80,9 @@ export default function OutputPanel() {
         >
           Download as .txt
         </button>
+        )}
       </div>
+      {notice && <p className="mt-2 text-sm text-gray-600">{notice}</p>}
     </section>
   )
 }
