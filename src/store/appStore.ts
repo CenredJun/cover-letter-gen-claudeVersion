@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { SaveArgs, SaveResult } from '../lib/tracker'
 import type {
   HistoryEntry,
   JobInput,
@@ -12,6 +13,7 @@ const emptyJobInput: JobInput = {
   companyName: '',
   addressTo: '',
   platform: '',
+  jobUrl: '',
   companyOverview: '',
   jobSummary: '',
   responsibilities: '',
@@ -36,6 +38,14 @@ Resume: https://drive.google.com/file/d/1OgtKpDMjiEwvuutvjWNuN7PdNj8kAQT2/view`,
 }
 
 // Lightweight unique id generator (no external deps).
+function readTrackerPref(): boolean {
+  try {
+    return localStorage.getItem('tracker-enabled') !== '0'
+  } catch {
+    return true
+  }
+}
+
 export function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
@@ -51,6 +61,8 @@ interface AppState {
   output: string
   cvOutput: string
   gapsOutput: string
+  trackerEnabled: boolean
+  tracker: { state: 'idle' | 'saving' | 'done'; result?: SaveResult; args?: SaveArgs }
   // Where profiles and history are kept: loading, the artifact's private
   // database (synced), or this browser only (local).
   storage: 'loading' | 'synced' | 'local'
@@ -66,6 +78,7 @@ interface AppState {
   setOutput: (output: string) => void
   setCvOutput: (cv: string) => void
   setGapsOutput: (gaps: string) => void
+  setTrackerEnabled: (on: boolean) => void
   setIsGenerating: (isGenerating: boolean) => void
 
   addToHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void
@@ -84,6 +97,8 @@ export const useAppStore = create<AppState>()((set) => ({
       output: '',
       cvOutput: '',
       gapsOutput: '',
+      trackerEnabled: readTrackerPref(),
+      tracker: { state: 'idle' },
       storage: 'loading',
 
       addProfile: (profile) => {
@@ -132,6 +147,14 @@ export const useAppStore = create<AppState>()((set) => ({
       setOutput: (output) => set({ output }),
       setCvOutput: (cvOutput) => set({ cvOutput }),
       setGapsOutput: (gapsOutput) => set({ gapsOutput }),
+      setTrackerEnabled: (trackerEnabled) => {
+        try {
+          localStorage.setItem('tracker-enabled', trackerEnabled ? '1' : '0')
+        } catch {
+          // Preference lasts for this visit only.
+        }
+        set({ trackerEnabled })
+      },
       setIsGenerating: (isGenerating) => set({ isGenerating }),
 
       addToHistory: (entry) =>

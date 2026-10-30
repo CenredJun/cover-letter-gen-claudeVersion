@@ -4,6 +4,7 @@
 // real list bullets, explicit paragraph spacing.
 
 import type { Paragraph as ParagraphType } from 'docx'
+import { parseInline } from './cvPdf'
 
 // Word measures spacing in twentieths of a point, sizes in half-points.
 const pt = (n: number) => n * 20
@@ -14,16 +15,16 @@ async function lib() {
   return import('docx')
 }
 
-// Turns "**bold** text" into runs.
+// Turns "**bold**", "[label](url)" and bare URLs into runs and links.
 function runs(d: typeof import('docx'), text: string, base: object = {}) {
-  return text
-    .split(/(\*\*[^*]+\*\*)/g)
-    .filter(Boolean)
-    .map((part) =>
-      part.startsWith('**') && part.endsWith('**')
-        ? new d.TextRun({ text: part.slice(2, -2), bold: true, ...base })
-        : new d.TextRun({ text: part, ...base })
-    )
+  return parseInline(text).map((r) =>
+    r.link
+      ? new d.ExternalHyperlink({
+          link: r.link,
+          children: [new d.TextRun({ text: r.text, style: 'Hyperlink', ...base })],
+        })
+      : new d.TextRun({ text: r.text, bold: r.bold, ...base })
+  )
 }
 
 function makeDoc(d: typeof import('docx'), children: ParagraphType[]) {

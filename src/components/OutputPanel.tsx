@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useCapability } from '../lib/claudeRuntime'
 import { buildCvDocx, buildLetterDocx } from '../lib/docxExport'
+import { buildCvPdf } from '../lib/cvPdf'
+import { TRACKER } from '../lib/tracker'
+import { runTrackerSave } from '../lib/trackerRun'
 
 type Tab = 'letter' | 'cv' | 'gaps'
 
@@ -12,6 +15,7 @@ export default function OutputPanel() {
   const jobInput = useAppStore((s) => s.jobInput)
   const outputMode = useAppStore((s) => s.outputMode)
   const isGenerating = useAppStore((s) => s.isGenerating)
+  const tracker = useAppStore((s) => s.tracker)
 
   const [tab, setTab] = useState<Tab>('letter')
   const [copied, setCopied] = useState(false)
@@ -60,16 +64,19 @@ export default function OutputPanel() {
     return `${parts.join(' - ') || kind}.${ext}`
   }
 
-  async function handleDownload() {
+  async function handleDownload(format?: 'word') {
     if (!text || !downloads) return
     setNotice(null)
     setSaving(true)
     try {
       let filename: string
       let data: Blob | string
-      if (activeTab === 'cv') {
+      if (activeTab === 'cv' && format === 'word') {
         filename = nameFor('CV', 'docx')
         data = await buildCvDocx(cvOutput)
+      } else if (activeTab === 'cv') {
+        filename = nameFor('CV', 'pdf')
+        data = await buildCvPdf(cvOutput)
       } else if (activeTab === 'gaps') {
         filename = nameFor('Gaps', 'txt')
         data = gapsOutput
@@ -104,7 +111,11 @@ export default function OutputPanel() {
           : 'Your generated cover letter will appear here…'
 
   const downloadLabel =
-    activeTab === 'gaps' || isPitch ? 'Download as .txt' : 'Download as Word (.docx)'
+    activeTab === 'cv'
+      ? 'Download CV as PDF'
+      : activeTab === 'gaps' || isPitch
+        ? 'Download as .txt'
+        : 'Download as Word (.docx)'
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -159,15 +170,71 @@ export default function OutputPanel() {
         {downloads && (
           <button
             type="button"
-            onClick={handleDownload}
+            onClick={() => handleDownload()}
             disabled={!text || isGenerating || saving}
             className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? 'Preparing…' : downloadLabel}
           </button>
         )}
+        {downloads && activeTab === 'cv' && (
+          <button
+            type="button"
+            onClick={() => handleDownload('word')}
+            disabled={!text || isGenerating || saving}
+            className="rounded-md px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Word version
+          </button>
+        )}
       </div>
       {notice && <p className="mt-2 text-sm text-gray-600">{notice}</p>}
+
+      {tracker.state !== 'idle' && (
+        <div
+          className={
+            'mt-4 rounded-md border px-3 py-2 text-sm ' +
+            (tracker.state === 'saving'
+              ? 'border-gray-200 bg-gray-50 text-gray-600'
+              : tracker.result?.ok
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-amber-200 bg-amber-50 text-amber-900')
+          }
+          role="status"
+        >
+          {tracker.state === 'saving' ? (
+            'Saving to Google Drive and the tracker…'
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <span>{tracker.result?.message}</span>
+              <span className="flex flex-wrap gap-x-4 gap-y-1">
+                {tracker.result?.cvUrl && (
+                  <a className="font-medium underline" href={tracker.result.cvUrl} target="_blank" rel="noreferrer">
+                    Open CV (PDF)
+                  </a>
+                )}
+                {tracker.result?.letterUrl && (
+                  <a className="font-medium underline" href={tracker.result.letterUrl} target="_blank" rel="noreferrer">
+                    Open {outputMode === 'pitch' ? 'pitch' : 'cover letter'}
+                  </a>
+                )}
+                <a className="font-medium underline" href={TRACKER.sheetUrl} target="_blank" rel="noreferrer">
+                  Open tracker
+                </a>
+                {!tracker.result?.ok && tracker.args && (
+                  <button
+                    type="button"
+                    onClick={() => runTrackerSave(tracker.args!)}
+                    className="font-medium underline"
+                  >
+                    Try again
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 }

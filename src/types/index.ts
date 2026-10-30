@@ -15,6 +15,7 @@ export interface JobInput {
   companyName: string
   addressTo: string
   platform: string // where job was posted
+  jobUrl?: string // link to the job post (used to avoid duplicate tracker rows)
   companyOverview: string
   jobSummary: string
   responsibilities: string
@@ -37,4 +38,8 @@ export interface HistoryEntry {
   output: string // cover letter or pitch
   cv?: string // tailored CV (cv_and_letter mode)
   gaps?: string // gaps between the job post and the CV
+  jobUrl?: string
+  platform?: string
+  matchScore?: number | null
+  trackerNote?: string // result of saving to Drive / Google Sheets
 }

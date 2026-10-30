@@ -199,6 +199,7 @@ export async function parseJobDescription(
 {
   "jobTitle": "",
   "companyName": "",
+  "jobUrl": "",
   "addressTo": "",
   "platform": "",
   "companyOverview": "",
@@ -231,6 +232,7 @@ ${rawText}
   const keys: (keyof JobInput)[] = [
     'jobTitle',
     'companyName',
+    'jobUrl',
     'addressTo',
     'platform',
     'companyOverview',
@@ -267,12 +269,15 @@ function buildCvPrompt(profile: Profile, job: JobInput): string {
   return `Tailor the master CV below to the job posting. Follow these rules strictly:
 1. Use only facts from the master CV. Never invent employers, dates, numbers, qualifications, certifications, tools or skills. Reword, reorder and emphasise; never fabricate.
 2. Mirror the job post's language and keywords wherever they truthfully match the candidate's experience, so the CV passes ATS screening.
-3. Put the most relevant experience and achievements first. Lead bullets with action verbs and keep quantified results exactly as the master CV states them.
+3. List roles in reverse-chronological order (most recent first). Show relevance through which bullets you keep and their order: the 3-5 most relevant achievements for recent or relevant roles, 1-2 for older or unrelated ones. Lead bullets with action verbs and keep quantified results exactly as the master CV states them.
 4. Keep it to a maximum of 2 A4 pages. Cut or shorten older and less relevant content first.
-5. Use the spelling conventions of the job's country (UK spelling for UK and Europe, US spelling for the US). If unclear, use UK spelling.
-6. Write a 3-4 line Profile at the top aimed at this specific role.
-7. Do not add a photo, date of birth, marital status or references section.
-8. If any field of the job details below is blank, ignore it.
+5. Use the spelling conventions of the job's country (UK spelling for UK, Europe and Australia, US spelling for the US). If unclear, use UK spelling.
+6. Profile: 2-3 sentences, no "I", aimed at this specific role: who the candidate is, their strongest relevant expertise, and the value they bring. A CV is not a cover letter, so the Profile and the rest of the CV must NOT mention availability or start dates, an attached portfolio, wanting to grow with the company, long-term goals, or being a partner/companion.
+7. Key Skills: 6-10 short items (under 55 characters each), most relevant to the job first.
+8. Contact line: city, email, phone, then links written as [LinkedIn](url) and [Portfolio](url). Use only details present in the contact block or master CV.
+9. Do not add a photo, date of birth, marital status or references section.
+10. If any field of the job details below is blank, ignore it.
+11. Special instructions below apply to the CV only where they concern CV content (what to emphasise, omit or how to describe skills); ignore any that are about cover letters (greetings, sign-offs, attached portfolio, long-term commitment, tone of a letter).
 
 Output format (Markdown, nothing else before or after):
 # Full Name
@@ -283,7 +288,7 @@ One short paragraph.
 - skill
 ## Professional Experience
 ### Job Title, Employer
-Dates | Location
+Mon YYYY – Mon YYYY | City, Country (or Remote)
 - achievement bullet
 ## Education
 ### Qualification, Institution
@@ -291,7 +296,10 @@ Dates
 ## Certifications
 - only if present in the master CV (omit the section otherwise)
 
-After the CV, write a line containing exactly ${GAPS_MARKER} and then a short bullet list of gaps between the job requirements and the master CV (missing qualifications, tools, sector or location experience), so the candidate can decide whether to apply. If there are no notable gaps, write "- No major gaps."
+After the CV, write a line containing exactly ${GAPS_MARKER} and then, in this order:
+MATCH SCORE: a number from 0 to 100 for how well the master CV fits this job
+WHY IT FITS: one line naming the strongest matches
+- a short bullet list of gaps between the job requirements and the master CV (missing qualifications, tools, sector or location experience), so the candidate can decide whether to apply. If there are no notable gaps, write "- No major gaps."
 ${special}
 ---CONTACT BLOCK---
 ${profile.contactBlock}
@@ -306,6 +314,7 @@ ${profile.toolsAndSkills}
 Job Title: ${job.jobTitle}
 Company Name: ${job.companyName}
 Platform where posted: ${job.platform}
+Job link: ${job.jobUrl ?? ''}
 Company Overview: ${job.companyOverview}
 Job Summary: ${job.jobSummary}
 Responsibilities: ${job.responsibilities}
@@ -313,12 +322,31 @@ Qualifications: ${job.qualifications}
 Additional notes: ${job.additionals}`
 }
 
-export function splitCvAndGaps(text: string): { cv: string; gaps: string } {
+export interface CvResult {
+  cv: string
+  gaps: string // the whole section after the marker, as shown in the Gaps tab
+  score: number | null
+  why: string
+  gapList: string // just the gap bullets, for the tracker
+}
+
+export function splitCvAndGaps(text: string): CvResult {
   const i = text.indexOf(GAPS_MARKER)
-  if (i === -1) return { cv: text.trim(), gaps: '' }
+  if (i === -1) return { cv: text.trim(), gaps: '', score: null, why: '', gapList: '' }
+  const gaps = text.slice(i + GAPS_MARKER.length).trim()
+  const scoreMatch = gaps.match(/MATCH SCORE:\s*(\d{1,3})/i)
+  const whyMatch = gaps.match(/WHY IT FITS:\s*(.+)/i)
+  const gapList = gaps
+    .split('\n')
+    .filter((l) => !/^(MATCH SCORE|WHY IT FITS):/i.test(l.trim()))
+    .join('\n')
+    .trim()
   return {
     cv: text.slice(0, i).trim(),
-    gaps: text.slice(i + GAPS_MARKER.length).trim(),
+    gaps,
+    score: scoreMatch ? Math.min(100, Number(scoreMatch[1])) : null,
+    why: whyMatch ? whyMatch[1].trim() : '',
+    gapList,
   }
 }
 
@@ -327,7 +355,7 @@ export async function generateTailoredCv(
   profile: Profile,
   job: JobInput,
   opts: CallOptions = {}
-): Promise<{ cv: string; gaps: string }> {
+): Promise<CvResult> {
   const text = await callClaude(CV_SYSTEM_PROMPT, buildCvPrompt(profile, job), opts)
   return splitCvAndGaps(text)
 }

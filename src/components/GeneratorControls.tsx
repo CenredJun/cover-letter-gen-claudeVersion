@@ -7,6 +7,7 @@ import {
 } from '../lib/claudeApi'
 import type { OutputMode, ToneOption } from '../types'
 import { describeSampleError, isSampleError } from '../lib/claudeRuntime'
+import { runTrackerSave } from '../lib/trackerRun'
 
 const TONES: { value: ToneOption; label: string }[] = [
   { value: 'professional', label: 'Professional' },
@@ -38,6 +39,8 @@ export default function GeneratorControls() {
   const profiles = useAppStore((s) => s.profiles)
   const activeProfileId = useAppStore((s) => s.activeProfileId)
   const addToHistory = useAppStore((s) => s.addToHistory)
+  const trackerEnabled = useAppStore((s) => s.trackerEnabled)
+  const setTrackerEnabled = useAppStore((s) => s.setTrackerEnabled)
 
   const [error, setError] = useState<string | null>(null)
   const ctlRef = useRef<AbortController | null>(null)
@@ -60,6 +63,7 @@ export default function GeneratorControls() {
     setOutput('')
     setCvOutput('')
     setGapsOutput('')
+    useAppStore.setState({ tracker: { state: 'idle' } })
     const ctl = new AbortController()
     ctlRef.current = ctl
     const opts = { signal: ctl.signal }
@@ -108,7 +112,23 @@ export default function GeneratorControls() {
           output: letterRes.value,
           cv: cvRes.value.cv,
           gaps: cvRes.value.gaps,
+          jobUrl: jobInput.jobUrl,
+          platform: jobInput.platform,
+          matchScore: cvRes.value.score,
         })
+        if (trackerEnabled) {
+          runTrackerSave({
+            job: { ...jobInput },
+            profileName: profile.name,
+            tone,
+            outputMode,
+            letter: letterRes.value,
+            cv: cvRes.value.cv,
+            score: cvRes.value.score,
+            why: cvRes.value.why,
+            gapList: cvRes.value.gapList,
+          })
+        }
       }
       ctlRef.current = null
       setIsGenerating(false)
@@ -131,7 +151,18 @@ export default function GeneratorControls() {
         tone,
         outputMode,
         output: letter,
+        jobUrl: jobInput.jobUrl,
+        platform: jobInput.platform,
       })
+      if (trackerEnabled) {
+        runTrackerSave({
+          job: { ...jobInput },
+          profileName: profile.name,
+          tone,
+          outputMode,
+          letter,
+        })
+      }
     } catch (err) {
       setOutput(failureText(err))
       reportError(err)
@@ -237,6 +268,22 @@ export default function GeneratorControls() {
         </button>
       )}
       </div>
+
+      <label
+        htmlFor="tracker-toggle"
+        className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-gray-600"
+      >
+        <input
+          id="tracker-toggle"
+          type="checkbox"
+          checked={trackerEnabled}
+          onChange={(e) => setTrackerEnabled(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+        />
+        <span>
+          Save files to Google Drive and log this job in the tracker sheet
+        </span>
+      </label>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
     </section>

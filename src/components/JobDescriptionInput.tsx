@@ -9,6 +9,7 @@ const FIELDS: { key: keyof JobInput; label: string; multiline: boolean }[] = [
   { key: 'companyName', label: 'Company Name', multiline: false },
   { key: 'addressTo', label: 'Address To', multiline: false },
   { key: 'platform', label: 'Platform', multiline: false },
+  { key: 'jobUrl', label: 'Job Link (URL)', multiline: false },
   { key: 'companyOverview', label: 'Company Overview', multiline: true },
   { key: 'jobSummary', label: 'Job Summary', multiline: true },
   { key: 'responsibilities', label: 'Responsibilities', multiline: true },
@@ -101,7 +102,7 @@ export default function JobDescriptionInput() {
               {field.multiline ? (
                 <textarea
                   id={`field-${field.key}`}
-                  value={jobInput[field.key]}
+                  value={jobInput[field.key] ?? ''}
                   onChange={(e) =>
                     updateJobInput({ [field.key]: e.target.value })
                   }
@@ -112,7 +113,7 @@ export default function JobDescriptionInput() {
                 <input
                   id={`field-${field.key}`}
                   type="text"
-                  value={jobInput[field.key]}
+                  value={jobInput[field.key] ?? ''}
                   onChange={(e) =>
                     updateJobInput({ [field.key]: e.target.value })
                   }
