@@ -49,6 +49,8 @@ interface AppState {
   history: HistoryEntry[]
   isGenerating: boolean
   output: string
+  cvOutput: string
+  gapsOutput: string
   // Where profiles and history are kept: loading, the artifact's private
   // database (synced), or this browser only (local).
   storage: 'loading' | 'synced' | 'local'
@@ -62,6 +64,8 @@ interface AppState {
   setTone: (tone: ToneOption) => void
   setOutputMode: (mode: OutputMode) => void
   setOutput: (output: string) => void
+  setCvOutput: (cv: string) => void
+  setGapsOutput: (gaps: string) => void
   setIsGenerating: (isGenerating: boolean) => void
 
   addToHistory: (entry: Omit<HistoryEntry, 'id' | 'createdAt'>) => void
@@ -78,6 +82,8 @@ export const useAppStore = create<AppState>()((set) => ({
       history: [],
       isGenerating: false,
       output: '',
+      cvOutput: '',
+      gapsOutput: '',
       storage: 'loading',
 
       addProfile: (profile) => {
@@ -124,6 +130,8 @@ export const useAppStore = create<AppState>()((set) => ({
       setTone: (tone) => set({ tone }),
       setOutputMode: (outputMode) => set({ outputMode }),
       setOutput: (output) => set({ output }),
+      setCvOutput: (cvOutput) => set({ cvOutput }),
+      setGapsOutput: (gapsOutput) => set({ gapsOutput }),
       setIsGenerating: (isGenerating) => set({ isGenerating }),
 
       addToHistory: (entry) =>

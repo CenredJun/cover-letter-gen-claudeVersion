@@ -1,6 +1,10 @@
 import { useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
-import { generateCoverLetter } from '../lib/claudeApi'
+import {
+  generateCoverLetter,
+  generateTailoredCv,
+  splitCvAndGaps,
+} from '../lib/claudeApi'
 import type { OutputMode, ToneOption } from '../types'
 import { describeSampleError, isSampleError } from '../lib/claudeRuntime'
 
@@ -13,6 +17,11 @@ const TONES: { value: ToneOption; label: string }[] = [
 const OUTPUT_MODES: { value: OutputMode; label: string; subtitle?: string }[] = [
   { value: 'cover_letter', label: 'Cover Letter' },
   { value: 'pitch', label: 'Pitch', subtitle: 'For Upwork & freelance' },
+  {
+    value: 'cv_and_letter',
+    label: 'Tailored CV + Cover Letter',
+    subtitle: 'Built from your uploaded CV',
+  },
 ]
 
 export default function GeneratorControls() {
@@ -23,6 +32,8 @@ export default function GeneratorControls() {
   const isGenerating = useAppStore((s) => s.isGenerating)
   const setIsGenerating = useAppStore((s) => s.setIsGenerating)
   const setOutput = useAppStore((s) => s.setOutput)
+  const setCvOutput = useAppStore((s) => s.setCvOutput)
+  const setGapsOutput = useAppStore((s) => s.setGapsOutput)
   const jobInput = useAppStore((s) => s.jobInput)
   const profiles = useAppStore((s) => s.profiles)
   const activeProfileId = useAppStore((s) => s.activeProfileId)
@@ -37,18 +48,80 @@ export default function GeneratorControls() {
       setError('Select a profile first (Manage Profiles in the sidebar).')
       return
     }
+    const cvMissing =
+      profile.resumeText.trim().length < 50 ||
+      profile.resumeText.startsWith('Paste your resume')
+    if (outputMode === 'cv_and_letter' && cvMissing) {
+      setError('Upload your CV first (sidebar button), so the tailored CV has facts to work from.')
+      return
+    }
     setError(null)
     setIsGenerating(true)
     setOutput('')
+    setCvOutput('')
+    setGapsOutput('')
     const ctl = new AbortController()
     ctlRef.current = ctl
+    const opts = { signal: ctl.signal }
+
+    // Keeps partial text on screen after a stop or failure.
+    const failureText = (err: unknown) =>
+      isSampleError(err) && err.code !== 'refused' ? err.text ?? '' : ''
+    const reportError = (err: unknown) => {
+      if (isSampleError(err) && err.code === 'cancelled') return
+      setError(describeSampleError(err))
+    }
+
+    if (outputMode === 'cv_and_letter') {
+      // The CV and the letter are written at the same time.
+      const [cvRes, letterRes] = await Promise.allSettled([
+        generateTailoredCv(profile, jobInput, {
+          ...opts,
+          onText: (t) => {
+            const { cv, gaps } = splitCvAndGaps(t)
+            setCvOutput(cv)
+            setGapsOutput(gaps)
+          },
+        }),
+        generateCoverLetter(profile, jobInput, tone, 'cover_letter', {
+          ...opts,
+          onText: setOutput,
+        }),
+      ])
+      if (cvRes.status === 'rejected') {
+        const { cv, gaps } = splitCvAndGaps(failureText(cvRes.reason))
+        setCvOutput(cv)
+        setGapsOutput(gaps)
+        reportError(cvRes.reason)
+      }
+      if (letterRes.status === 'rejected') {
+        setOutput(failureText(letterRes.reason))
+        reportError(letterRes.reason)
+      }
+      if (cvRes.status === 'fulfilled' && letterRes.status === 'fulfilled') {
+        addToHistory({
+          profileName: profile.name,
+          jobTitle: jobInput.jobTitle,
+          companyName: jobInput.companyName,
+          tone,
+          outputMode,
+          output: letterRes.value,
+          cv: cvRes.value.cv,
+          gaps: cvRes.value.gaps,
+        })
+      }
+      ctlRef.current = null
+      setIsGenerating(false)
+      return
+    }
+
     try {
       const letter = await generateCoverLetter(
         profile,
         jobInput,
         tone,
         outputMode,
-        { signal: ctl.signal, onText: setOutput }
+        { ...opts, onText: setOutput }
       )
       setOutput(letter)
       addToHistory({
@@ -60,13 +133,8 @@ export default function GeneratorControls() {
         output: letter,
       })
     } catch (err) {
-      if (isSampleError(err)) {
-        // Keep whatever was written before the stop or failure.
-        setOutput(err.code === 'refused' ? '' : err.text ?? '')
-        if (err.code !== 'cancelled') setError(describeSampleError(err))
-      } else {
-        setError(describeSampleError(err))
-      }
+      setOutput(failureText(err))
+      reportError(err)
     } finally {
       ctlRef.current = null
       setIsGenerating(false)
@@ -155,7 +223,9 @@ export default function GeneratorControls() {
           ? 'Generating…'
           : outputMode === 'pitch'
             ? 'Generate Pitch'
-            : 'Generate Cover Letter'}
+            : outputMode === 'cv_and_letter'
+              ? 'Generate CV + Cover Letter'
+              : 'Generate Cover Letter'}
       </button>
       {isGenerating && (
         <button

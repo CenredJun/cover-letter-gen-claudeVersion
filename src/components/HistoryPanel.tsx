@@ -12,6 +12,8 @@ function formatDate(iso: string): string {
 export default function HistoryPanel() {
   const history = useAppStore((s) => s.history)
   const setOutput = useAppStore((s) => s.setOutput)
+  const setCvOutput = useAppStore((s) => s.setCvOutput)
+  const setGapsOutput = useAppStore((s) => s.setGapsOutput)
   const deleteHistoryEntry = useAppStore((s) => s.deleteHistoryEntry)
   const clearHistory = useAppStore((s) => s.clearHistory)
 
@@ -34,7 +36,7 @@ export default function HistoryPanel() {
 
       {history.length === 0 ? (
         <p className="text-xs text-gray-500">
-          Generated letters will be saved here.
+          Generated letters and CVs will be saved here.
         </p>
       ) : (
         <ul className="-mr-1 flex-1 space-y-1 overflow-y-auto pr-1">
@@ -45,7 +47,11 @@ export default function HistoryPanel() {
             >
               <button
                 type="button"
-                onClick={() => setOutput(entry.output)}
+                onClick={() => {
+                  setOutput(entry.output)
+                  setCvOutput(entry.cv ?? '')
+                  setGapsOutput(entry.gaps ?? '')
+                }}
                 className="block w-full text-left"
               >
                 <span className="flex items-center gap-1.5">
@@ -57,10 +63,16 @@ export default function HistoryPanel() {
                       'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +
                       (entry.outputMode === 'pitch'
                         ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-indigo-500/20 text-indigo-300')
+                        : entry.outputMode === 'cv_and_letter'
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-indigo-500/20 text-indigo-300')
                     }
                   >
-                    {entry.outputMode === 'pitch' ? 'Pitch' : 'CL'}
+                    {entry.outputMode === 'pitch'
+                      ? 'Pitch'
+                      : entry.outputMode === 'cv_and_letter'
+                        ? 'CV+CL'
+                        : 'CL'}
                   </span>
                 </span>
                 <span className="block truncate text-xs text-gray-400">
@@ -73,7 +85,7 @@ export default function HistoryPanel() {
               <button
                 type="button"
                 onClick={() => deleteHistoryEntry(entry.id)}
-                className="mt-1 text-[11px] text-gray-500 opacity-0 transition group-hover:opacity-100 hover:text-red-400"
+                className="mt-1 text-[11px] text-gray-500 transition md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 hover:text-red-400"
               >
                 Delete
               </button>

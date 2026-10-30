@@ -5,11 +5,14 @@ import JobDescriptionInput from './components/JobDescriptionInput'
 import GeneratorControls from './components/GeneratorControls'
 import OutputPanel from './components/OutputPanel'
 import HistoryPanel from './components/HistoryPanel'
+import CvUpload from './components/CvUpload'
 
 export default function App() {
   const profiles = useAppStore((s) => s.profiles)
   const activeProfileId = useAppStore((s) => s.activeProfileId)
   const setActiveProfile = useAppStore((s) => s.setActiveProfile)
+  const updateProfile = useAppStore((s) => s.updateProfile)
+  const activeProfile = profiles.find((p) => p.id === activeProfileId)
 
   const storage = useAppStore((s) => s.storage)
 
@@ -58,6 +61,20 @@ export default function App() {
           >
             Manage Profiles
           </button>
+          {activeProfile && (
+            <div className="mt-2">
+              <CvUpload
+                dark
+                fileName={activeProfile.cvFileName}
+                onLoaded={(text, fileName) =>
+                  updateProfile(activeProfile.id, {
+                    resumeText: text,
+                    cvFileName: fileName,
+                  })
+                }
+              />
+            </div>
+          )}
         </div>
 
         <HistoryPanel />

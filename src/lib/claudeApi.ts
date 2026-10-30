@@ -249,3 +249,85 @@ ${rawText}
   }
   return result
 }
+
+// ---------------------------------------------------------------------------
+// Tailored CV (same rules as the "ACCA job finder" project)
+// ---------------------------------------------------------------------------
+
+const CV_SYSTEM_PROMPT = `You are an expert CV writer and recruiter who also thinks like an applicant tracking system (ATS). You tailor a candidate's existing CV to one job posting. You are strictly truthful: you reword, reorder and emphasise, but you never fabricate.`
+
+export const GAPS_MARKER = '---GAPS---'
+
+function buildCvPrompt(profile: Profile, job: JobInput): string {
+  const special =
+    profile.specialInstructions.trim() !== ''
+      ? `\n---SPECIAL INSTRUCTIONS (follow strictly)---\n${profile.specialInstructions}\n`
+      : ''
+
+  return `Tailor the master CV below to the job posting. Follow these rules strictly:
+1. Use only facts from the master CV. Never invent employers, dates, numbers, qualifications, certifications, tools or skills. Reword, reorder and emphasise; never fabricate.
+2. Mirror the job post's language and keywords wherever they truthfully match the candidate's experience, so the CV passes ATS screening.
+3. Put the most relevant experience and achievements first. Lead bullets with action verbs and keep quantified results exactly as the master CV states them.
+4. Keep it to a maximum of 2 A4 pages. Cut or shorten older and less relevant content first.
+5. Use the spelling conventions of the job's country (UK spelling for UK and Europe, US spelling for the US). If unclear, use UK spelling.
+6. Write a 3-4 line Profile at the top aimed at this specific role.
+7. Do not add a photo, date of birth, marital status or references section.
+8. If any field of the job details below is blank, ignore it.
+
+Output format (Markdown, nothing else before or after):
+# Full Name
+City | email | phone | LinkedIn or portfolio (only details present in the master CV or contact block)
+## Profile
+One short paragraph.
+## Key Skills
+- skill
+## Professional Experience
+### Job Title, Employer
+Dates | Location
+- achievement bullet
+## Education
+### Qualification, Institution
+Dates
+## Certifications
+- only if present in the master CV (omit the section otherwise)
+
+After the CV, write a line containing exactly ${GAPS_MARKER} and then a short bullet list of gaps between the job requirements and the master CV (missing qualifications, tools, sector or location experience), so the candidate can decide whether to apply. If there are no notable gaps, write "- No major gaps."
+${special}
+---CONTACT BLOCK---
+${profile.contactBlock}
+
+---MASTER CV---
+${profile.resumeText}
+
+Tools & Skills (from the candidate's profile):
+${profile.toolsAndSkills}
+
+---JOB DETAILS---
+Job Title: ${job.jobTitle}
+Company Name: ${job.companyName}
+Platform where posted: ${job.platform}
+Company Overview: ${job.companyOverview}
+Job Summary: ${job.jobSummary}
+Responsibilities: ${job.responsibilities}
+Qualifications: ${job.qualifications}
+Additional notes: ${job.additionals}`
+}
+
+export function splitCvAndGaps(text: string): { cv: string; gaps: string } {
+  const i = text.indexOf(GAPS_MARKER)
+  if (i === -1) return { cv: text.trim(), gaps: '' }
+  return {
+    cv: text.slice(0, i).trim(),
+    gaps: text.slice(i + GAPS_MARKER.length).trim(),
+  }
+}
+
+/** Generate a tailored CV (Markdown) plus a list of gaps. */
+export async function generateTailoredCv(
+  profile: Profile,
+  job: JobInput,
+  opts: CallOptions = {}
+): Promise<{ cv: string; gaps: string }> {
+  const text = await callClaude(CV_SYSTEM_PROMPT, buildCvPrompt(profile, job), opts)
+  return splitCvAndGaps(text)
+}

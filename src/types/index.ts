@@ -7,6 +7,7 @@ export interface Profile {
   portfolioProjects: string
   contactBlock: string // name, email, phone, linkedin, resume link
   specialInstructions: string
+  cvFileName?: string // name of the uploaded master CV file, if any
 }
 
 export interface JobInput {
@@ -23,7 +24,7 @@ export interface JobInput {
 
 export type ToneOption = 'professional' | 'assertive' | 'warm'
 
-export type OutputMode = 'cover_letter' | 'pitch'
+export type OutputMode = 'cover_letter' | 'pitch' | 'cv_and_letter'
 
 export interface HistoryEntry {
   id: string
@@ -33,5 +34,7 @@ export interface HistoryEntry {
   companyName: string
   tone: ToneOption
   outputMode: OutputMode
-  output: string
+  output: string // cover letter or pitch
+  cv?: string // tailored CV (cv_and_letter mode)
+  gaps?: string // gaps between the job post and the CV
 }

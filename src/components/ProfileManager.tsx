@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import type { Profile } from '../types'
+import CvUpload from './CvUpload'
 
 interface ProfileManagerProps {
   onClose: () => void
@@ -46,6 +47,7 @@ export default function ProfileManager({ onClose }: ProfileManagerProps) {
       portfolioProjects: draft.portfolioProjects,
       contactBlock: draft.contactBlock,
       specialInstructions: draft.specialInstructions,
+      cvFileName: draft.cvFileName,
     }
     if (draft.id) {
       updateProfile(draft.id, payload)
@@ -148,12 +150,23 @@ export default function ProfileManager({ onClose }: ProfileManagerProps) {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-600">
-                  Resume &amp; Experience
+                  Master CV / Resume &amp; Experience
                 </label>
+                <div className="mb-2">
+                  <CvUpload
+                    fileName={draft.cvFileName}
+                    onLoaded={(text, fileName) =>
+                      setDraft((d) =>
+                        d ? { ...d, resumeText: text, cvFileName: fileName } : d
+                      )
+                    }
+                  />
+                </div>
                 <textarea
                   value={draft.resumeText}
+                  placeholder="Upload your CV above, or paste it here. Tailored CVs only use facts from this text."
                   onChange={(e) => field('resumeText', e.target.value)}
-                  rows={6}
+                  rows={10}
                   className="w-full resize-y rounded-md border border-gray-300 p-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>

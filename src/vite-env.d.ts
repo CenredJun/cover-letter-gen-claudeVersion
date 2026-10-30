@@ -1,9 +1,8 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  readonly VITE_CLAUDE_API_KEY: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
+declare module 'mammoth/mammoth.browser.js' {
+  const mammoth: {
+    extractRawText(input: { arrayBuffer: ArrayBuffer }): Promise<{ value: string }>
+  }
+  export default mammoth
 }
